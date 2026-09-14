@@ -9,20 +9,15 @@ export default function Home() {
           </div>
 
           <div className="hidden gap-7 text-sm md:flex">
-            <a href="#" className="font-medium">
-              首页
+            <a href="/" className="font-medium">首页
             </a>
-            <a href="#" className="text-[#6f675d] hover:text-[#29251f]">
-              八字排盘
+            <a href="/pan" className="text-[#6f675d] hover:text-[#29251f]">八字排盘
             </a>
-            <a href="#" className="text-[#6f675d] hover:text-[#29251f]">
-              婚恋合盘
+            <a href="/compatibility" className="text-[#6f675d] hover:text-[#29251f]">婚恋合盘
             </a>
-            <a href="#" className="text-[#6f675d] hover:text-[#29251f]">
-              报告示例
+            <a href="/pan" className="text-[#6f675d] hover:text-[#29251f]">报告示例
             </a>
-            <a href="#" className="text-[#6f675d] hover:text-[#29251f]">
-              个人中心
+            <a href="/pan" className="text-[#6f675d] hover:text-[#29251f]">个人中心
             </a>
           </div>
 
@@ -51,13 +46,9 @@ export default function Home() {
           </p>
 
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <button className="rounded-xl bg-[#2f2a24] px-7 py-4 font-medium text-white shadow-sm hover:bg-[#423a31]">
-              开始八字排盘 →
-            </button>
+            <a href="/pan" className="rounded-xl bg-[#2f2a24] px-7 py-4 font-medium text-white shadow-sm hover:bg-[#423a31]">开始八字排盘 →</a>
 
-            <button className="rounded-xl border border-[#cfc5b7] bg-white px-7 py-4 font-medium hover:bg-[#faf8f4]">
-              查看报告示例
-            </button>
+            <a href="/pan" className="rounded-xl border border-[#cfc5b7] bg-white px-7 py-4 font-medium hover:bg-[#faf8f4]">查看报告示例</a>
           </div>
         </div>
       </section>
