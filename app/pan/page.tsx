@@ -1608,7 +1608,7 @@ function getRelationship(branchA: string, branchB: string) {
 
   if (sanhe) relations.push("三合");
 
-  return [...new Set(relations)];
+  return Array.from(new Set(relations));
 }
 
 /* =========================================================
