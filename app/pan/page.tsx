@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Solar } from "lunar-typescript";
 import {
   calculateBazi,
   type Gender,
@@ -77,6 +78,25 @@ export default function PanPage() {
   const maxDay = daysInMonth(Number(year), Number(month));
 
   const safeDay = Math.min(Number(day), maxDay);
+
+  const liveLunarDate = useMemo(() => {
+    try {
+      const solar = Solar.fromYmdHms(
+        Number(year),
+        Number(month),
+        safeDay,
+        Number(hour),
+        Number(minute),
+        0,
+      );
+
+      const lunar = solar.getLunar();
+
+      return `${lunar.getYearInChinese()}年${lunar.getMonthInChinese()}月${lunar.getDayInChinese()}`;
+    } catch {
+      return "";
+    }
+  }, [year, month, safeDay, hour, minute]);
 
   const days = Array.from(
     { length: maxDay },
@@ -232,7 +252,7 @@ export default function PanPage() {
             </div>
 
             <div className="mt-2 text-base font-semibold">
-              {calculated?.lunarDate || "请选择出生信息后排盘"}
+              {liveLunarDate || "请选择出生信息"}
             </div>
           </div>
 
