@@ -261,7 +261,9 @@ export default function PanPage() {
                 <div className="text-sm text-[#806b55]">
                   {calculated.solarDate} · {calculated.solarTime} ·{" "}
                   {gender}
-                </div>
+                                  <div className="mt-1 text-sm text-[#967b5d]">
+                    农历：{calculated.lunarDate}
+                  </div></div>
               </div>
 
               <div className="mt-6 grid gap-3 md:grid-cols-4">

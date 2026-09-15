@@ -311,28 +311,70 @@ function buildInterpretation(
 
   const relationText =
     relations.length > 0
-      ? relations.map((x) => `${x.from}${x.to}${x.type}`).join("、")
-      : "四柱之间未检测到六合、六冲、相害、相刑等主要关系";
+      ? relations
+          .map((item) => `${item.from}${item.to}${item.type}`)
+          .join("、")
+      : "四柱之间暂未检测到主要六合、六冲、相害、相刑关系";
+
+  const maxElement = ELEMENTS.reduce((best, item) =>
+    counts[item] > counts[best] ? item : best
+  );
+
+  const minElement = ELEMENTS.reduce((best, item) =>
+    counts[item] < counts[best] ? item : best
+  );
 
   const daYunText = currentDaYun
-    ? `当前大运为${currentDaYun.pillar}，从${currentDaYun.startYear}年进入，约${currentDaYun.startAge}岁起运。`
-    : "当前年龄尚未进入已列出的大运阶段。";
+    ? `当前大运为${currentDaYun.pillar}，约从${currentDaYun.startAge}岁进入，覆盖${currentDaYun.startYear}—${currentDaYun.endYear}年。`
+    : "当前年份尚未落入已经列出的十年大运区间。";
 
-  const yearElement = stemElement(currentYear.stem);
-  const branchElementNow = branchElement(currentYear.branch);
+  const currentYearElement = stemElement(currentYear.stem);
+  const currentYearBranchElement = branchElement(currentYear.branch);
+
+  const strengthText =
+    strength === "身强"
+      ? `日主${dayMaster}属${dayElement}，目前属于身强结构。命局中的扶身力量相对明显，因此分析重点不是继续增加同类力量，而是观察泄耗、克制与现实事务之间是否形成平衡。`
+      : strength === "身弱"
+        ? `日主${dayMaster}属${dayElement}，目前属于身弱结构。命局承载力相对有限，因此首先要看生扶日主的力量是否能够形成稳定支撑，再判断财官食伤等力量是否过重。`
+        : `日主${dayMaster}属${dayElement}，整体处于中和状态。命局不宜简单归入极强或极弱，更适合观察不同五行进入之后产生的动态变化。`;
+
+  const usefulText =
+    useful.length > 0
+      ? useful.join("、")
+      : "暂未形成明确单一取用方向";
+
+  const avoidText =
+    avoid.length > 0
+      ? avoid.join("、")
+      : "暂未形成明确忌避方向";
+
+  const careerText =
+    strength === "身强"
+      ? `事业层面宜把力量放在${usefulText}所代表的调节方向上，尤其要避免把竞争、执行和自我投入无限放大。`
+      : strength === "身弱"
+        ? `事业层面首先重视${usefulText}所代表的支撑力量，再考虑财星、官杀等现实压力。基础稳定后，承担更高目标会更有持续性。`
+        : `事业层面适合根据具体流年与大运调整节奏，不宜仅凭日主强弱做单一判断。`;
+
+  const relationshipText =
+    counts[wealth] > counts[dayElement]
+      ? `关系与现实资源层面，${wealth}的力量较为明显，容易把现实责任、资源配置或伴侣议题带入命局核心，需要注意投入与承载之间的比例。`
+      : `关系与现实资源层面，${wealth}并非命局中最突出的力量，因此更需要结合日支以及后续大运、流年来观察具体阶段变化。`;
+
+  const yearText = currentDaYun
+    ? `2026年为${currentYear.ganZhi}，流年天干${currentYear.stem}对应日主的${yearGod}。流年天干五行为${currentYearElement}，地支五行为${currentYearBranchElement}，同时处于${currentDaYun.pillar}大运阶段。因此今年不能脱离大运单独判断，重点应观察流年力量与大运、原局之间是形成扶助、泄耗还是冲动。`
+    : `2026年为${currentYear.ganZhi}，流年天干${currentYear.stem}对应日主的${yearGod}。流年天干五行为${currentYearElement}，地支五行为${currentYearBranchElement}，应结合出生原局及未来进入的大运阶段继续判断。`;
 
   return [
-    `日主为${dayMaster}${dayElement}。${strength}的判断来自月令、同类五行与生扶力量的综合比较，而不是单看五行数量。当前命局以${pattern}作为主要结构观察点。`,
-    `从五行作用看，${dayElement}的生扶来自${support}，自身又向${output}泄秀，并受${authority}制约、克制${wealth}。结合当前命局强弱，较适合优先观察${useful.join("、")}的调节作用；${avoid.join("、")}则需要避免继续形成失衡。五行统计为木${counts.木}、火${counts.火}、土${counts.土}、金${counts.金}、水${counts.水}。`,
-    `命局地支实际结构为：${relationText}。这些关系用于判断事件主题的牵动方式，合多时重点看合作、黏合与资源汇聚，冲害出现时则重点看变化、摩擦、环境转换或关系调整。`,
+    strengthText,
+    `命局五行统计中，${maxElement}当前数量最高，${minElement}当前数量最低。日主得到${support}的生扶，同时向${output}方向泄秀，并受到${authority}的制约、对${wealth}形成克制。因此判断喜用时不能只看某一个五行出现次数，而要综合月令、日主强弱以及五行之间的生克关系。当前取用方向偏向${usefulText}，需要控制的方向偏向${avoidText}。`,
+    `四柱地支关系目前检测到：${relationText}。其中合通常体现连接、合作、资源汇聚，冲则更容易表现为变化、移动、矛盾或环境转换，害与刑则更偏向隐性摩擦和结构性牵制。真正解释事件时，还需要观察这些关系有没有被当前大运或流年再次触发。`,
     daYunText,
-    currentDaYun
-      ? `当前大运${currentDaYun.pillar}与日主${dayElement}的关系，需要结合其天干十神与地支五行判断。当前流年为${currentYear.year}年${currentYear.ganZhi}，流年天干对应${yearGod}，流年五行分别为${yearElement}与${branchElementNow}，因此今年的重点不是固定的“好”或“坏”，而是看流年如何叠加当前大运与原局。`
-      : `当前流年为${currentYear.year}年${currentYear.ganZhi}，流年天干对应${yearGod}，流年五行分别为${yearElement}与${branchElementNow}，应结合进入大运的具体年龄阶段继续判断。`,
-    `事业层面重点观察官杀、食伤与印星之间的配合；财运重点观察财星是否得到日主承载以及是否受到过度克制；关系层面则同时参考财星、官杀与夫妻宫（日支）的实际结构。因此后续解读应随着出生时间、当前大运和流年的变化而变化，而不是使用固定模板。`,
+    yearText,
+    careerText,
+    relationshipText,
+    `综合来看，这张命盘不适合用固定的“好命/坏命”标签概括。真正有价值的是把原局结构作为底盘，再把大运作为十年周期、流年作为年度触发因素叠加观察。当前五行最需要关注的是${usefulText}的调节作用，以及${avoidText}是否出现过度。`,
   ];
 }
-
 export function calculateBazi(
   birthDate: Date,
   birthTime: string,
@@ -568,7 +610,13 @@ export function calculateBazi(
 
     branchRelations: relations,
 
-    forward: true,
+    forward: (() => {
+      const yearGan = eight.getYearGan();
+      const yangGan = ["甲", "丙", "戊", "庚", "壬"];
+      const isYangYear = yangGan.includes(yearGan);
+      const isMale = gender === "男";
+      return isMale === isYangYear;
+    })(),
     startAge: Math.max(0, startAge),
     startDate,
 
