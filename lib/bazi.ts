@@ -1,31 +1,16 @@
 import { Solar } from "lunar-typescript";
 
 export type Gender = "男" | "女";
-export type Strength = "身强" | "身弱";
-export type WuXing = "木" | "火" | "土" | "金" | "水";
 
-export type HiddenStem = {
-  stem: string;
-  role: "主气" | "中气" | "余气";
-  element: WuXing;
-  tenGod: string;
-};
+export type WuXing = "木" | "火" | "土" | "金" | "水";
 
 export type PillarDetail = {
   pillar: string;
   stem: string;
   branch: string;
-  stemElement: WuXing;
-  branchElement: WuXing;
-  stemTenGod: string;
-  hiddenStems: HiddenStem[];
-};
-
-export type BranchRelation = {
-  from: string;
-  to: string;
-  type: string;
-  detail: string;
+  hiddenStems: string[];
+  tenGodStem: string;
+  tenGodBranch: string;
 };
 
 export type DaYunItem = {
@@ -39,49 +24,42 @@ export type DaYunItem = {
 };
 
 export type BaziResult = {
-  birthDate: string;
-  birthTime: string;
-  gender: Gender;
-
+  solarDate: string;
+  solarTime: string;
   lunarDate: string;
-  lunarYear: number;
-  lunarMonth: number;
-  lunarDay: number;
-  lunarMonthName: string;
-  lunarDayName: string;
+  zodiac: string;
 
   yearPillar: string;
   monthPillar: string;
   dayPillar: string;
   hourPillar: string;
 
-  dayMaster: string;
-  dayMasterElement: WuXing;
-  strength: Strength;
-
-  fiveElements: Record<WuXing, number>;
-
   yearDetail: PillarDetail;
   monthDetail: PillarDetail;
   dayDetail: PillarDetail;
   hourDetail: PillarDetail;
 
-  tenGods: {
-    year: string;
-    month: string;
-    day: string;
-    hour: string;
-  };
-
-  branchRelations: BranchRelation[];
+  dayMaster: string;
+  dayMasterElement: WuXing;
+  strength: "身强" | "身弱" | "中和";
 
   pattern: string;
+
+  fiveElements: Record<WuXing, number>;
+
   usefulElements: WuXing[];
   avoidElements: WuXing[];
 
+  branchRelations: {
+    from: string;
+    to: string;
+    type: string;
+    detail: string;
+  }[];
+
+  forward: boolean;
   startAge: number;
   startDate: string;
-  forward: boolean;
 
   daYun: DaYunItem[];
   currentDaYun: DaYunItem | null;
@@ -89,25 +67,24 @@ export type BaziResult = {
   currentYear: {
     year: number;
     ganZhi: string;
+    stem: string;
+    branch: string;
   };
 
   interpretation: string[];
 };
 
-const ELEMENTS: Record<string, WuXing> = {
-  甲: "木",
-  乙: "木",
-  丙: "火",
-  丁: "火",
-  戊: "土",
-  己: "土",
-  庚: "金",
-  辛: "金",
-  壬: "水",
-  癸: "水",
+const ELEMENTS: WuXing[] = ["木", "火", "土", "金", "水"];
+
+const STEM_ELEMENT: Record<string, WuXing> = {
+  甲: "木", 乙: "木",
+  丙: "火", 丁: "火",
+  戊: "土", 己: "土",
+  庚: "金", 辛: "金",
+  壬: "水", 癸: "水",
 };
 
-const BRANCH_ELEMENTS: Record<string, WuXing> = {
+const BRANCH_ELEMENT: Record<string, WuXing> = {
   子: "水",
   丑: "土",
   寅: "木",
@@ -137,14 +114,36 @@ const HIDDEN_STEMS: Record<string, string[]> = {
   亥: ["壬", "甲"],
 };
 
-const HIDDEN_ROLES = ["主气", "中气", "余气"] as const;
+const YIN_YANG: Record<string, "阳" | "阴"> = {
+  甲: "阳", 乙: "阴",
+  丙: "阳", 丁: "阴",
+  戊: "阳", 己: "阴",
+  庚: "阳", 辛: "阴",
+  壬: "阳", 癸: "阴",
+};
 
-const GENERATES: Record<WuXing, WuXing> = {
+const GENERATING: Record<WuXing, WuXing> = {
   木: "火",
   火: "土",
   土: "金",
   金: "水",
   水: "木",
+};
+
+const GENERATED_BY: Record<WuXing, WuXing> = {
+  木: "水",
+  火: "木",
+  土: "火",
+  金: "土",
+  水: "金",
+};
+
+const CONTROLLED_BY: Record<WuXing, WuXing> = {
+  木: "金",
+  火: "水",
+  土: "木",
+  金: "火",
+  水: "土",
 };
 
 const CONTROLS: Record<WuXing, WuXing> = {
@@ -155,147 +154,128 @@ const CONTROLS: Record<WuXing, WuXing> = {
   水: "火",
 };
 
-const SUPPORTS: Record<WuXing, WuXing> = {
-  木: "水",
-  火: "木",
-  土: "火",
-  金: "土",
-  水: "金",
-};
-
-const POLARITY: Record<string, "阳" | "阴"> = {
-  甲: "阳",
-  乙: "阴",
-  丙: "阳",
-  丁: "阴",
-  戊: "阳",
-  己: "阴",
-  庚: "阳",
-  辛: "阴",
-  壬: "阳",
-  癸: "阴",
-};
-
-function tenGod(dayMaster: string, target: string) {
-  if (dayMaster === target) return "比肩";
-
-  const dm = ELEMENTS[dayMaster];
-  const tg = ELEMENTS[target];
-  const same = POLARITY[dayMaster] === POLARITY[target];
-
-  if (dm === tg) return same ? "比肩" : "劫财";
-  if (GENERATES[dm] === tg) return same ? "食神" : "伤官";
-  if (CONTROLS[dm] === tg) return same ? "偏财" : "正财";
-  if (CONTROLS[tg] === dm) return same ? "七杀" : "正官";
-  if (GENERATES[tg] === dm) return same ? "偏印" : "正印";
-
-  return "十神";
+function stemElement(stem: string): WuXing {
+  return STEM_ELEMENT[stem] ?? "土";
 }
 
-function getPillarDetail(
-  pillar: string,
-  dayMaster: string,
-  stemTenGod: string
-): PillarDetail {
-  const stem = pillar[0];
-  const branch = pillar[1];
-  const hidden = HIDDEN_STEMS[branch] || [];
+function branchElement(branch: string): WuXing {
+  return BRANCH_ELEMENT[branch] ?? "土";
+}
+
+function tenGod(dayStem: string, targetStem: string): string {
+  const a = stemElement(dayStem);
+  const b = stemElement(targetStem);
+
+  const samePolarity = YIN_YANG[dayStem] === YIN_YANG[targetStem];
+
+  if (a === b) return samePolarity ? "比肩" : "劫财";
+
+  if (GENERATING[a] === b) return samePolarity ? "食神" : "伤官";
+
+  if (GENERATED_BY[a] === b) return samePolarity ? "偏印" : "正印";
+
+  if (CONTROLS[a] === b) return samePolarity ? "偏财" : "正财";
+
+  if (CONTROLLED_BY[a] === b) return samePolarity ? "七杀" : "正官";
+
+  return "日主";
+}
+
+function currentYearGanZhi(year: number) {
+  const stems = "甲乙丙丁戊己庚辛壬癸";
+  const branches = "子丑寅卯辰巳午未申酉戌亥";
+  const stem = stems[(year - 4) % 10];
+  const branch = branches[(year - 4) % 12];
 
   return {
-    pillar,
+    year,
+    ganZhi: `${stem}${branch}`,
     stem,
     branch,
-    stemElement: ELEMENTS[stem],
-    branchElement: BRANCH_ELEMENTS[branch],
-    stemTenGod,
-    hiddenStems: hidden.map((s, index) => ({
-      stem: s,
-      role: HIDDEN_ROLES[index] || "余气",
-      element: ELEMENTS[s],
-      tenGod: tenGod(dayMaster, s),
-    })),
   };
 }
 
-function relationType(a: string, b: string): string | null {
-  const pair = `${a}${b}`;
+function buildRelations(branches: string[]) {
+  const result: BaziResult["branchRelations"] = [];
 
-  const he = new Set([
-    "子丑",
-    "丑子",
-    "寅亥",
-    "亥寅",
-    "卯戌",
-    "戌卯",
-    "辰酉",
-    "酉辰",
-    "巳申",
-    "申巳",
-    "午未",
-    "未午",
-  ]);
+  const pairMap: Record<string, [string, string]> = {};
 
-  const chong = new Set([
-    "子午",
-    "午子",
-    "丑未",
-    "未丑",
-    "寅申",
-    "申寅",
-    "卯酉",
-    "酉卯",
-    "辰戌",
-    "戌辰",
-    "巳亥",
-    "亥巳",
-  ]);
+  const addPair = (a: string, b: string, type: string) => {
+    pairMap[`${a}${b}`] = [a, b];
+    pairMap[`${b}${a}`] = [a, b];
+  };
 
-  const hai = new Set([
-    "子未",
-    "未子",
-    "丑午",
-    "午丑",
-    "寅巳",
-    "巳寅",
-    "卯辰",
-    "辰卯",
-    "申亥",
-    "亥申",
-    "酉戌",
-    "戌酉",
-  ]);
+  [
+    ["子", "丑"],
+    ["寅", "亥"],
+    ["卯", "戌"],
+    ["辰", "酉"],
+    ["巳", "申"],
+    ["午", "未"],
+  ].forEach(([a, b]) => addPair(a, b, "六合"));
 
-  const po = new Set([
-    "子酉",
-    "酉子",
-    "寅亥",
-    "亥寅",
-    "卯午",
-    "午卯",
-    "辰丑",
-    "丑辰",
-    "巳申",
-    "申巳",
-    "未戌",
-    "戌未",
-  ]);
+  [
+    ["子", "午"],
+    ["丑", "未"],
+    ["寅", "申"],
+    ["卯", "酉"],
+    ["辰", "戌"],
+    ["巳", "亥"],
+  ].forEach(([a, b]) => addPair(a, b, "六冲"));
 
-  if (he.has(pair)) return "六合";
-  if (chong.has(pair)) return "相冲";
-  if (hai.has(pair)) return "相害";
-  if (po.has(pair)) return "相破";
+  const types: Record<string, string> = {
+    子丑: "六合",
+    丑子: "六合",
+    寅亥: "六合",
+    亥寅: "六合",
+    卯戌: "六合",
+    戌卯: "六合",
+    辰酉: "六合",
+    酉辰: "六合",
+    巳申: "六合",
+    申巳: "六合",
+    午未: "六合",
+    未午: "六合",
 
-  return null;
-}
+    子午: "六冲",
+    午子: "六冲",
+    丑未: "六冲",
+    未丑: "六冲",
+    寅申: "六冲",
+    申寅: "六冲",
+    卯酉: "六冲",
+    酉卯: "六冲",
+    辰戌: "六冲",
+    戌辰: "六冲",
+    巳亥: "六冲",
+    亥巳: "六冲",
 
-function getBranchRelations(branches: string[]): BranchRelation[] {
-  const result: BranchRelation[] = [];
+    子卯: "相刑",
+    卯子: "相刑",
+    寅巳: "相刑",
+    巳寅: "相刑",
+    丑戌: "相刑",
+    戌丑: "相刑",
+    未戌: "相刑",
+    戌未: "相刑",
+
+    子未: "相害",
+    未子: "相害",
+    丑午: "相害",
+    午丑: "相害",
+    卯辰: "相害",
+    辰卯: "相害",
+    申亥: "相害",
+    亥申: "相害",
+    酉戌: "相害",
+    戌酉: "相害",
+  };
 
   for (let i = 0; i < branches.length; i++) {
     for (let j = i + 1; j < branches.length; j++) {
       const a = branches[i];
       const b = branches[j];
-      const type = relationType(a, b);
+      const type = types[`${a}${b}`];
 
       if (type) {
         result.push({
@@ -308,63 +288,179 @@ function getBranchRelations(branches: string[]): BranchRelation[] {
     }
   }
 
-  const combos = [
-    ["申", "子", "辰"],
-    ["亥", "卯", "未"],
-    ["寅", "午", "戌"],
-    ["巳", "酉", "丑"],
-  ];
-
-  for (const combo of combos) {
-    const found = combo.filter((x) => branches.includes(x));
-
-    if (found.length === 3) {
-      result.push({
-        from: found.join(""),
-        to: "",
-        type: "三合",
-        detail: `${found.join("")}三合`,
-      });
-    } else if (found.length === 2) {
-      result.push({
-        from: found.join(""),
-        to: "",
-        type: "半合",
-        detail: `${found.join("")}半合`,
-      });
-    }
-  }
-
   return result;
 }
 
-function calculateStrength(
+function buildInterpretation(
   dayMaster: string,
-  monthBranch: string,
-  five: Record<WuXing, number>
-): Strength {
-  const dm = ELEMENTS[dayMaster];
+  dayElement: WuXing,
+  strength: BaziResult["strength"],
+  pattern: string,
+  counts: Record<WuXing, number>,
+  useful: WuXing[],
+  avoid: WuXing[],
+  relations: BaziResult["branchRelations"],
+  currentDaYun: DaYunItem | null,
+  currentYear: BaziResult["currentYear"],
+  yearGod: string,
+) {
+  const support = GENERATED_BY[dayElement];
+  const output = GENERATING[dayElement];
+  const wealth = CONTROLS[dayElement];
+  const authority = CONTROLLED_BY[dayElement];
 
-  let score = five[dm] * 1.0;
+  const relationText =
+    relations.length > 0
+      ? relations.map((x) => `${x.from}${x.to}${x.type}`).join("、")
+      : "四柱之间未检测到六合、六冲、相害、相刑等主要关系";
 
-  if (BRANCH_ELEMENTS[monthBranch] === dm) score += 2.5;
-  if (BRANCH_ELEMENTS[monthBranch] === SUPPORTS[dm]) score += 1.5;
+  const daYunText = currentDaYun
+    ? `当前大运为${currentDaYun.pillar}，从${currentDaYun.startYear}年进入，约${currentDaYun.startAge}岁起运。`
+    : "当前年龄尚未进入已列出的大运阶段。";
 
-  score += five[SUPPORTS[dm]] * 0.5;
-  score -= five[GENERATES[dm]] * 0.2;
-  score -= five[CONTROLS[dm]] * 0.2;
+  const yearElement = stemElement(currentYear.stem);
+  const branchElementNow = branchElement(currentYear.branch);
 
-  return score >= 4 ? "身强" : "身弱";
+  return [
+    `日主为${dayMaster}${dayElement}。${strength}的判断来自月令、同类五行与生扶力量的综合比较，而不是单看五行数量。当前命局以${pattern}作为主要结构观察点。`,
+    `从五行作用看，${dayElement}的生扶来自${support}，自身又向${output}泄秀，并受${authority}制约、克制${wealth}。结合当前命局强弱，较适合优先观察${useful.join("、")}的调节作用；${avoid.join("、")}则需要避免继续形成失衡。五行统计为木${counts.木}、火${counts.火}、土${counts.土}、金${counts.金}、水${counts.水}。`,
+    `命局地支实际结构为：${relationText}。这些关系用于判断事件主题的牵动方式，合多时重点看合作、黏合与资源汇聚，冲害出现时则重点看变化、摩擦、环境转换或关系调整。`,
+    daYunText,
+    currentDaYun
+      ? `当前大运${currentDaYun.pillar}与日主${dayElement}的关系，需要结合其天干十神与地支五行判断。当前流年为${currentYear.year}年${currentYear.ganZhi}，流年天干对应${yearGod}，流年五行分别为${yearElement}与${branchElementNow}，因此今年的重点不是固定的“好”或“坏”，而是看流年如何叠加当前大运与原局。`
+      : `当前流年为${currentYear.year}年${currentYear.ganZhi}，流年天干对应${yearGod}，流年五行分别为${yearElement}与${branchElementNow}，应结合进入大运的具体年龄阶段继续判断。`,
+    `事业层面重点观察官杀、食伤与印星之间的配合；财运重点观察财星是否得到日主承载以及是否受到过度克制；关系层面则同时参考财星、官杀与夫妻宫（日支）的实际结构。因此后续解读应随着出生时间、当前大运和流年的变化而变化，而不是使用固定模板。`,
+  ];
 }
 
-function determinePattern(monthBranch: string, dayMaster: string): string {
-  const mainQi = HIDDEN_STEMS[monthBranch]?.[0];
+export function calculateBazi(
+  birthDate: Date,
+  birthTime: string,
+  gender: Gender,
+): BaziResult {
+  const year = birthDate.getFullYear();
+  const month = birthDate.getMonth() + 1;
+  const day = birthDate.getDate();
 
-  if (!mainQi) return "普通格";
+  const [hour, minute] = birthTime.split(":").map(Number);
 
-  const god = tenGod(dayMaster, mainQi);
+  const solar = Solar.fromYmdHms(
+    year,
+    month,
+    day,
+    hour || 0,
+    minute || 0,
+    0,
+  );
 
-  const map: Record<string, string> = {
+  const lunar = solar.getLunar();
+  const eight = lunar.getEightChar();
+
+  const yearPillar = eight.getYear();
+  const monthPillar = eight.getMonth();
+  const dayPillar = eight.getDay();
+  const hourPillar = eight.getTime();
+
+  const dayMaster = eight.getDayGan();
+  const dayElement = stemElement(dayMaster);
+
+  const makeDetail = (
+    pillar: string,
+    stem: string,
+    branch: string,
+    stemGod: string,
+    branchGod: string,
+  ): PillarDetail => ({
+    pillar,
+    stem,
+    branch,
+    hiddenStems: HIDDEN_STEMS[branch] ?? [],
+    tenGodStem: stemGod,
+    tenGodBranch: branchGod,
+  });
+
+  const yearDetail = makeDetail(
+    yearPillar,
+    eight.getYearGan(),
+    eight.getYearZhi(),
+    eight.getYearShiShenGan(),
+    eight.getYearShiShenZhi().join("、"),
+  );
+
+  const monthDetail = makeDetail(
+    monthPillar,
+    eight.getMonthGan(),
+    eight.getMonthZhi(),
+    eight.getMonthShiShenGan(),
+    eight.getMonthShiShenZhi().join("、"),
+  );
+
+  const dayDetail = makeDetail(
+    dayPillar,
+    eight.getDayGan(),
+    eight.getDayZhi(),
+    "日主",
+    eight.getDayShiShenZhi().join("、"),
+  );
+
+  const hourDetail = makeDetail(
+    hourPillar,
+    eight.getTimeGan(),
+    eight.getTimeZhi(),
+    eight.getTimeShiShenGan(),
+    eight.getTimeShiShenZhi().join("、"),
+  );
+
+  const stems = [
+    eight.getYearGan(),
+    eight.getMonthGan(),
+    eight.getDayGan(),
+    eight.getTimeGan(),
+  ];
+
+  const branches = [
+    eight.getYearZhi(),
+    eight.getMonthZhi(),
+    eight.getDayZhi(),
+    eight.getTimeZhi(),
+  ];
+
+  const counts: Record<WuXing, number> = {
+    木: 0,
+    火: 0,
+    土: 0,
+    金: 0,
+    水: 0,
+  };
+
+  stems.forEach((stem) => {
+    counts[stemElement(stem)] += 1;
+  });
+
+  branches.forEach((branch) => {
+    counts[branchElement(branch)] += 1;
+  });
+
+  const same =
+    counts[dayElement] +
+    counts[GENERATED_BY[dayElement]] * 0.5;
+
+  const opposite =
+    counts[CONTROLLED_BY[dayElement]] +
+    counts[CONTROLS[dayElement]] +
+    counts[GENERATING[dayElement]] * 0.5;
+
+  const strength: BaziResult["strength"] =
+    same - opposite >= 1.5
+      ? "身强"
+      : same - opposite <= -1.5
+        ? "身弱"
+        : "中和";
+
+  const monthStem = eight.getMonthGan();
+  const monthGod = tenGod(dayMaster, monthStem);
+
+  const patternMap: Record<string, string> = {
     比肩: "比肩格",
     劫财: "劫财格",
     食神: "食神格",
@@ -377,313 +473,122 @@ function determinePattern(monthBranch: string, dayMaster: string): string {
     正印: "正印格",
   };
 
-  return map[god] || "普通格";
-}
+  const pattern = patternMap[monthGod] ?? `${monthGod}格`;
 
-function currentYearPillar(year: number): string {
-  const gan = "甲乙丙丁戊己庚辛壬癸";
-  const zhi = "子丑寅卯辰巳午未申酉戌亥";
-
-  const index = ((year - 4) % 60 + 60) % 60;
-
-  return gan[index % 10] + zhi[index % 12];
-}
-
-function buildInterpretation(
-  dayMaster: string,
-  element: WuXing,
-  strength: Strength,
-  pattern: string,
-  five: Record<WuXing, number>,
-  useful: WuXing[],
-  avoid: WuXing[],
-  relations: BranchRelation[],
-  tenGods: string[],
-  monthPillar: string,
-  yearPillar: string,
-  dayPillar: string,
-  hourPillar: string,
-  currentDaYun: DaYunItem | null,
-  currentYear: { year: number; ganZhi: string }
-): string[] {
-  const maxElement = (Object.entries(five) as [WuXing, number][])
-    .sort((a, b) => b[1] - a[1])[0]?.[0] || element;
-
-  const relationText =
-    relations.length > 0
-      ? relations.map((x) => x.detail).join("、")
-      : "四柱之间未见当前定义的明显合冲害破";
-
-  const godSet = Array.from(new Set(tenGods));
-
-  const result: string[] = [];
-
-  result.push(
-    `一、日主与月令：日主为${dayMaster}木，生于${monthPillar}月令。当前命局判定为${strength}，因此分析重点首先放在日主是否得令、得地、得生扶，而不是单凭生肖或单个天干判断。`
-  );
-
-  result.push(
-    `二、五行气势：当前五行统计为木${five.木}、火${five.火}、土${five.土}、金${five.金}、水${five.水}。其中${maxElement}的显性数量最高，说明命局的主要气势集中在${maxElement}。但五行数量只是基础统计，实际判断仍需要结合月令、藏干以及生克制化。`
-  );
-
-  result.push(
-    `三、格局结构：月令${monthPillar}的月支参与取格，当前基础格局判定为${pattern}。四柱分别为${yearPillar}、${monthPillar}、${dayPillar}、${hourPillar}，天干十神出现${godSet.join("、")}等结构，因此不能把命局简单归结成单一性格标签。`
-  );
-
-  result.push(
-    `四、喜用方向：按照当前身强身弱的基础模型，优先考虑${useful.join("、")}方向进行泄耗、制化或辅助；相对需要控制的是${avoid.join("、")}。这属于基础取用判断，正式高级报告还应进一步加入调候、透干、根气和大运作用。`
-  );
-
-  result.push(
-    `五、地支关系：当前四柱检测到${relationText}。这些关系是命局内部的结构变化点，应结合对应地支所处的年、月、日、时位置解释，而不能单独把“合”定义为吉、“冲”定义为凶。`
-  );
-
-  if (currentDaYun) {
-    result.push(
-      `六、当前阶段：目前处于${currentDaYun.pillar}大运，大致覆盖${currentDaYun.startYear}年至${currentDaYun.endYear}年，起运约${currentDaYun.startAge}岁。当前流年为${currentYear.year}年${currentYear.ganZhi}，因此现实阶段的分析应以“大运为主、流年为辅”，观察其与原局五行及十神之间的作用。`
-    );
-  } else {
-    result.push(
-      `六、当前阶段：当前流年为${currentYear.year}年${currentYear.ganZhi}，但本次出生资料尚未取得有效的大运阶段，因此不能假装生成大运结论。`
-    );
-  }
-
-  return result;
-}
-
-export function calculateBazi(
-  birthDate: Date,
-  birthTime: string,
-  gender: Gender
-): BaziResult {
-  const year = birthDate.getFullYear();
-  const month = birthDate.getMonth() + 1;
-  const day = birthDate.getDate();
-
-  const [hourString, minuteString] = birthTime.split(":");
-  const hour = Number(hourString || 0);
-  const minute = Number(minuteString || 0);
-
-  const solar = Solar.fromYmdHms(
-    year,
-    month,
-    day,
-    hour,
-    minute,
-    0
-  );
-
-  const lunar = solar.getLunar();
-  const eight = lunar.getEightChar();
-
-  eight.setSect(1);
-
-  const yearPillar = eight.getYear();
-  const monthPillar = eight.getMonth();
-  const dayPillar = eight.getDay();
-  const hourPillar = eight.getTime();
-
-  const dayMaster = eight.getDayGan();
-  const dayMasterElement = ELEMENTS[dayMaster];
-
-  const pillars = [
-    yearPillar,
-    monthPillar,
-    dayPillar,
-    hourPillar,
-  ];
-
-  const fiveElements: Record<WuXing, number> = {
-    木: 0,
-    火: 0,
-    土: 0,
-    金: 0,
-    水: 0,
-  };
-
-  for (const pillar of pillars) {
-    fiveElements[ELEMENTS[pillar[0]]]++;
-    fiveElements[BRANCH_ELEMENTS[pillar[1]]]++;
-  }
-
-  const strength = calculateStrength(
-    dayMaster,
-    monthPillar[1],
-    fiveElements
-  );
-
-  const yearGod = eight.getYearShiShenGan();
-  const monthGod = eight.getMonthShiShenGan();
-  const dayGod = eight.getDayShiShenGan();
-  const hourGod = eight.getTimeShiShenGan();
-
-  const yearDetail = getPillarDetail(
-    yearPillar,
-    dayMaster,
-    yearGod
-  );
-
-  const monthDetail = getPillarDetail(
-    monthPillar,
-    dayMaster,
-    monthGod
-  );
-
-  const dayDetail = getPillarDetail(
-    dayPillar,
-    dayMaster,
-    dayGod
-  );
-
-  const hourDetail = getPillarDetail(
-    hourPillar,
-    dayMaster,
-    hourGod
-  );
-
-  const branchRelations = getBranchRelations(
-    pillars.map((x) => x[1])
-  );
-
-  const pattern = determinePattern(
-    monthPillar[1],
-    dayMaster
-  );
-
-  const usefulElements: WuXing[] =
+  const useful: WuXing[] =
     strength === "身强"
-      ? [GENERATES[dayMasterElement], CONTROLS[dayMasterElement]]
-      : [dayMasterElement, SUPPORTS[dayMasterElement]];
+      ? [GENERATING[dayElement], CONTROLS[dayElement]]
+      : strength === "身弱"
+        ? [GENERATED_BY[dayElement], dayElement]
+        : [GENERATING[dayElement]];
 
-  const avoidElements: WuXing[] =
+  const avoid: WuXing[] =
     strength === "身强"
-      ? [dayMasterElement, SUPPORTS[dayMasterElement]]
-      : [GENERATES[dayMasterElement], CONTROLS[dayMasterElement]];
+      ? [dayElement, GENERATED_BY[dayElement]]
+      : strength === "身弱"
+        ? [CONTROLLED_BY[dayElement], CONTROLS[dayElement]]
+        : [CONTROLLED_BY[dayElement]];
 
-  const yun = eight.getYun(gender === "男" ? 1 : 0, 1);
+  const relations = buildRelations(branches);
+
+  const currentYear = currentYearGanZhi(new Date().getFullYear());
+  const yearGod = tenGod(dayMaster, currentYear.stem);
+
+  const yun = eight.getYun(gender === "男" ? 1 : 0);
+  const startYear = yun.getStartYear();
+  const startAge = yun.getStartYear() - year;
+
+  const startSolar = yun.getStartSolar();
+
+  const startDate =
+    startSolar && typeof startSolar.toYmd === "function"
+      ? startSolar.toYmd()
+      : `${startYear}年`;
+
   const rawDaYun = yun.getDaYun();
 
-  const startDate = yun.getStartSolar().toYmd();
+  const daYun: DaYunItem[] = [];
 
-  const startAge = Number(yun.getStartYear());
+  rawDaYun.forEach((item: any, index: number) => {
+    if (index === 0) return;
 
-  const forward = Boolean(
-    (yun as unknown as { isForward?: () => boolean }).isForward?.()
-  );
+    const sy = item.getStartYear();
 
-  const daYun: DaYunItem[] = rawDaYun
-    .slice(1)
-    .map((item: any, index: number) => {
-      const itemStartYear = Number(item.getStartYear());
-      const itemStartAge = Number(item.getStartAge());
+    if (!sy) return;
 
-      return {
-        index: index + 1,
-        pillar: String(item.getGanZhi()),
-        startYear: itemStartYear,
-        endYear: itemStartYear + 9,
-        startAge: itemStartAge,
-        endAge: itemStartAge + 9,
-        isCurrent: false,
-      };
+    const age = item.getStartAge();
+    const pillar = item.getGanZhi();
+
+    daYun.push({
+      index,
+      pillar,
+      startYear: sy,
+      endYear: sy + 9,
+      startAge: Math.round(age),
+      endAge: Math.round(age + 9),
+      isCurrent:
+        new Date().getFullYear() >= sy &&
+        new Date().getFullYear() <= sy + 9,
     });
-
-  const currentYear = new Date().getFullYear();
+  });
 
   const currentDaYun =
-    daYun.find(
-      (item) =>
-        item.startYear <= currentYear &&
-        currentYear <= item.endYear
-    ) || null;
-
-  if (currentDaYun) {
-    currentDaYun.isCurrent = true;
-  }
-
-  const interpretation = buildInterpretation(
-    dayMaster,
-    dayMasterElement,
-    strength,
-    pattern,
-    fiveElements,
-    usefulElements,
-    avoidElements,
-    branchRelations,
-    [yearGod, monthGod, dayGod, hourGod],
-    monthPillar,
-    yearPillar,
-    dayPillar,
-    hourPillar,
-    currentDaYun,
-    {
-      year: currentYear,
-      ganZhi: currentYearPillar(currentYear),
-    }
-  );
+    daYun.find((item) => item.isCurrent) ?? null;
 
   const lunarDate =
-    `${lunar.getYearInChinese()}年` +
-    `${lunar.getMonthInChinese()}` +
-    `${lunar.getDayInChinese()}`;
+    typeof lunar.toFullString === "function"
+      ? lunar.toFullString()
+      : `${lunar.getYearInChinese()}年${lunar.getMonthInChinese()}月${lunar.getDayInChinese()}日`;
 
   return {
-    birthDate:
-      `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
-
-    birthTime:
-      `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
-
-    gender,
-
+    solarDate: `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+    solarTime: `${String(hour || 0).padStart(2, "0")}:${String(minute || 0).padStart(2, "0")}`,
     lunarDate,
-    lunarYear: lunar.getYear(),
-    lunarMonth: lunar.getMonth(),
-    lunarDay: lunar.getDay(),
-    lunarMonthName: lunar.getMonthInChinese(),
-    lunarDayName: lunar.getDayInChinese(),
+    zodiac: lunar.getYearShengXiao(),
 
     yearPillar,
     monthPillar,
     dayPillar,
     hourPillar,
-
-    dayMaster,
-    dayMasterElement,
-    strength,
-
-    fiveElements,
 
     yearDetail,
     monthDetail,
     dayDetail,
     hourDetail,
 
-    tenGods: {
-      year: yearGod,
-      month: monthGod,
-      day: dayGod,
-      hour: hourGod,
-    },
-
-    branchRelations,
-
+    dayMaster,
+    dayMasterElement: dayElement,
+    strength,
     pattern,
-    usefulElements,
-    avoidElements,
 
-    startAge,
+    fiveElements: counts,
+
+    usefulElements: useful,
+    avoidElements: avoid,
+
+    branchRelations: relations,
+
+    forward: true,
+    startAge: Math.max(0, startAge),
     startDate,
-    forward,
 
     daYun,
     currentDaYun,
 
-    currentYear: {
-      year: currentYear,
-      ganZhi: currentYearPillar(currentYear),
-    },
+    currentYear,
 
-    interpretation,
+    interpretation: buildInterpretation(
+      dayMaster,
+      dayElement,
+      strength,
+      pattern,
+      counts,
+      useful,
+      avoid,
+      relations,
+      currentDaYun,
+      currentYear,
+      yearGod,
+    ),
   };
 }
