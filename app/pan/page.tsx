@@ -32,7 +32,7 @@ function SelectBox({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="h-12 w-full rounded-2xl border border-[#ddcbb3] bg-white px-4 text-center text-base text-[#583a27] outline-none focus:border-[#96704b]"
+      className="h-14 w-full rounded-xl border border-[#ddd5c8] bg-white px-4 text-center text-sm text-[#5f594f] outline-none focus:border-[#29251f]"
     >
       {children}
     </select>
@@ -141,129 +141,159 @@ export default function PanPage() {
   }, [calculated]);
 
   return (
-    <main className="min-h-screen bg-[#f7f1e8] text-[#583a27]">
+    <main className="min-h-screen bg-[#f7f4ee] text-[#29251f]">
       <div className="mx-auto max-w-6xl px-5 py-10 md:px-8">
-        <div className="mb-8">
-          <div className="text-sm text-[#967b5d]">
+        <header className="mb-10">
+          <div className="mb-3 text-sm tracking-[0.2em] text-[#8b6f47]">
             东方命格 AI
           </div>
 
-          <h1 className="mt-2 text-3xl font-semibold tracking-wide">
+          <h1 className="text-3xl font-semibold md:text-4xl">
             个人八字排盘
           </h1>
 
-          <p className="mt-3 text-sm leading-7 text-[#806b55]">
-            输入出生年月日、出生时刻与性别，生成四柱、农历、
-            五行、十神、大运与流年分析。
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-[#756f66]">
+            输入出生年月日、出生时刻与性别，生成四柱、农历、五行、十神、大运与流年分析。
           </p>
-        </div>
-
-        <section className="rounded-3xl border border-[#e5d7c3] bg-[#fffaf3] p-6 shadow-sm md:p-8">
-          <h2 className="text-xl font-semibold">
-            出生信息
-          </h2>
-
-          <div className="mt-5 grid gap-3 md:grid-cols-6">
-            <div>
-              <div className="mb-2 text-xs text-[#967b5d]">
-                年
-              </div>
-              <SelectBox value={year} onChange={handleYear}>
-                {YEARS.map((item) => (
-                  <option key={item} value={item}>
-                    {item} 年
-                  </option>
-                ))}
-              </SelectBox>
+        </header>
+        <section className="rounded-3xl border border-[#e7e0d4] bg-white p-5 shadow-sm md:p-7">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#29251f] text-sm text-white">
+              命
             </div>
 
             <div>
-              <div className="mb-2 text-xs text-[#967b5d]">
-                月
+              <h2 className="text-xl font-semibold">
+                出生信息
+              </h2>
+
+              <p className="mt-1 text-xs text-[#92897d]">
+                请填写真实出生信息
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-7">
+
+            <div>
+              <div className="mb-3 text-sm font-medium text-[#5f594f]">
+                出生日期
               </div>
-              <SelectBox value={month} onChange={handleMonth}>
-                {MONTHS.map((item) => (
-                  <option key={item} value={item}>
-                    {item} 月
-                  </option>
-                ))}
-              </SelectBox>
+
+              <div className="grid grid-cols-3 gap-2">
+
+                <SelectBox
+                  value={year}
+                  onChange={handleYear}
+                >
+                  {YEARS.map((item) => (
+                    <option key={item} value={item}>
+                      {item} 年
+                    </option>
+                  ))}
+                </SelectBox>
+
+                <SelectBox
+                  value={month}
+                  onChange={handleMonth}
+                >
+                  {MONTHS.map((item) => (
+                    <option key={item} value={item}>
+                      {item} 月
+                    </option>
+                  ))}
+                </SelectBox>
+
+                <SelectBox
+                  value={String(safeDay)}
+                  onChange={setDay}
+                >
+                  {days.map((item) => (
+                    <option key={item} value={item}>
+                      {item} 日
+                    </option>
+                  ))}
+                </SelectBox>
+
+              </div>
             </div>
 
             <div>
-              <div className="mb-2 text-xs text-[#967b5d]">
-                日
+              <div className="mb-3 text-sm font-medium text-[#5f594f]">
+                出生时间
               </div>
-              <SelectBox value={String(safeDay)} onChange={setDay}>
-                {days.map((item) => (
-                  <option key={item} value={item}>
-                    {item} 日
-                  </option>
-                ))}
-              </SelectBox>
+
+              <div className="grid grid-cols-2 gap-2">
+
+                <SelectBox
+                  value={hour}
+                  onChange={setHour}
+                >
+                  {HOURS.map((item) => (
+                    <option key={item} value={item}>
+                      {String(item).padStart(2, "0")} 时
+                    </option>
+                  ))}
+                </SelectBox>
+
+                <SelectBox
+                  value={minute}
+                  onChange={setMinute}
+                >
+                  {MINUTES.map((item) => (
+                    <option key={item} value={item}>
+                      {String(item).padStart(2, "0")} 分
+                    </option>
+                  ))}
+                </SelectBox>
+
+              </div>
             </div>
 
             <div>
-              <div className="mb-2 text-xs text-[#967b5d]">
-                时
-              </div>
-              <SelectBox value={hour} onChange={setHour}>
-                {HOURS.map((item) => (
-                  <option key={item} value={item}>
-                    {String(item).padStart(2, "0")} 时
-                  </option>
-                ))}
-              </SelectBox>
-            </div>
-
-            <div>
-              <div className="mb-2 text-xs text-[#967b5d]">
-                分
-              </div>
-              <SelectBox value={minute} onChange={setMinute}>
-                {MINUTES.map((item) => (
-                  <option key={item} value={item}>
-                    {String(item).padStart(2, "0")} 分
-                  </option>
-                ))}
-              </SelectBox>
-            </div>
-
-            <div>
-              <div className="mb-2 text-xs text-[#967b5d]">
+              <div className="mb-3 text-sm font-medium text-[#5f594f]">
                 性别
               </div>
 
-              <SelectBox
-                value={gender}
-                onChange={(value) =>
-                  setGender(value as Gender)
-                }
-              >
-                <option value="女">女</option>
-                <option value="男">男</option>
-              </SelectBox>
+              <div className="grid grid-cols-2 gap-3">
+
+                {(["男", "女"] as const).map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setGender(item)}
+                    className={`h-14 rounded-xl border text-sm transition ${
+                      gender === item
+                        ? "border-[#29251f] bg-[#29251f] text-white"
+                        : "border-[#ddd5c8] bg-white text-[#5f594f]"
+                    }`}
+                  >
+                    {item}
+                  </button>
+                ))}
+
+              </div>
             </div>
+
+            <div className="rounded-2xl bg-[#f5f1ea] p-4">
+              <div className="text-xs text-[#92897d]">
+                农历日期
+              </div>
+
+              <div className="mt-2 text-base font-semibold text-[#29251f]">
+                {liveLunarDate || "请选择出生信息"}
+              </div>
+            </div>
+
+            <button
+              onClick={runCalculation}
+              className="w-full rounded-xl bg-[#29251f] px-5 py-4 text-sm font-semibold text-white transition hover:bg-[#403a33]"
+            >
+              开始排盘
+            </button>
+
           </div>
-
-          <div className="mt-5 rounded-2xl bg-[#f3e9db] p-4">
-            <div className="text-xs text-[#967b5d]">
-              农历
-            </div>
-
-            <div className="mt-2 text-base font-semibold">
-              {liveLunarDate || "请选择出生信息"}
-            </div>
-          </div>
-
-          <button
-            onClick={runCalculation}
-            className="mt-5 w-full rounded-2xl bg-[#6e5036] px-5 py-4 text-sm font-semibold text-white transition hover:bg-[#583f2b]"
-          >
-            开始排盘
-          </button>
         </section>
-
         {calculated && (
           <div className="mt-6 space-y-6">
             <section className="rounded-3xl border border-[#e5d7c3] bg-[#fffaf3] p-6 shadow-sm md:p-8">
