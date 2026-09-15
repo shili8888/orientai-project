@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Solar } from "lunar-typescript";
+import { Lunar, LunarYear, Solar } from "lunar-typescript";
 import {
   calculateBazi,
   type Gender,
@@ -66,22 +66,83 @@ function DetailCard({
 }
 
 export default function PanPage() {
+  const [name, setName] = useState("");
+  const [calendarMode, setCalendarMode] = useState<"solar" | "lunar">("solar");
+
   const [year, setYear] = useState("2000");
   const [month, setMonth] = useState("2");
   const [day, setDay] = useState("6");
+
+  const [lunarYear, setLunarYear] = useState("2000");
+  const [lunarMonth, setLunarMonth] = useState("1");
+  const [lunarDay, setLunarDay] = useState("2");
+
   const [hour, setHour] = useState("6");
   const [minute, setMinute] = useState("59");
   const [gender, setGender] = useState<Gender>("女");
 
   const [calculated, setCalculated] = useState<BaziResult | null>(null);
-
   const maxDay = daysInMonth(Number(year), Number(month));
 
   const safeDay = Math.min(Number(day), maxDay);
 
-  const liveLunarDate = useMemo(() => {
+  const lunarMonths = useMemo(() => {
     try {
-      const solar = Solar.fromYmdHms(
+      return LunarYear.fromYear(Number(lunarYear))
+        .getMonthsInYear()
+        .map((item) => ({
+          value: item.getMonth(),
+          label: `${item.isLeap() ? "闰" : ""}${Math.abs(item.getMonth())}月`,
+          days: item.getDayCount(),
+        }));
+    } catch {
+      return [];
+    }
+  }, [lunarYear]);
+
+  const lunarMonthInfo = useMemo(() => {
+    try {
+      return (
+        LunarYear.fromYear(Number(lunarYear)).getMonth(
+          Number(lunarMonth),
+        ) || null
+      );
+    } catch {
+      return null;
+    }
+  }, [lunarYear, lunarMonth]);
+
+  const lunarMaxDay = lunarMonthInfo?.getDayCount() || 30;
+
+  const safeLunarDay = Math.min(
+    Number(lunarDay),
+    lunarMaxDay,
+  );
+
+  const days = Array.from(
+    { length: maxDay },
+    (_, i) => i + 1,
+  );
+
+  const lunarDays = Array.from(
+    { length: lunarMaxDay },
+    (_, i) => i + 1,
+  );
+
+  const resolvedSolar = useMemo(() => {
+    try {
+      if (calendarMode === "lunar") {
+        return Lunar.fromYmdHms(
+          Number(lunarYear),
+          Number(lunarMonth),
+          safeLunarDay,
+          Number(hour),
+          Number(minute),
+          0,
+        ).getSolar();
+      }
+
+      return Solar.fromYmdHms(
         Number(year),
         Number(month),
         safeDay,
@@ -89,23 +150,41 @@ export default function PanPage() {
         Number(minute),
         0,
       );
+    } catch {
+      return null;
+    }
+  }, [
+    calendarMode,
+    year,
+    month,
+    safeDay,
+    lunarYear,
+    lunarMonth,
+    safeLunarDay,
+    hour,
+    minute,
+  ]);
 
-      const lunar = solar.getLunar();
+  const liveLunarDate = useMemo(() => {
+    try {
+      if (!resolvedSolar) return "";
+
+      const lunar = resolvedSolar.getLunar();
 
       return `${lunar.getYearInChinese()}年${lunar.getMonthInChinese()}月${lunar.getDayInChinese()}`;
     } catch {
       return "";
     }
-  }, [year, month, safeDay, hour, minute]);
-
-  const days = Array.from(
-    { length: maxDay },
-    (_, i) => i + 1,
-  );
+  }, [resolvedSolar]);
 
   const handleMonth = (value: string) => {
     setMonth(value);
-    const max = daysInMonth(Number(year), Number(value));
+
+    const max = daysInMonth(
+      Number(year),
+      Number(value),
+    );
+
     if (Number(day) > max) {
       setDay(String(max));
     }
@@ -113,17 +192,56 @@ export default function PanPage() {
 
   const handleYear = (value: string) => {
     setYear(value);
-    const max = daysInMonth(Number(value), Number(month));
+
+    const max = daysInMonth(
+      Number(value),
+      Number(month),
+    );
+
     if (Number(day) > max) {
       setDay(String(max));
     }
   };
 
+  const handleLunarYear = (value: string) => {
+    setLunarYear(value);
+
+    const months =
+      LunarYear.fromYear(Number(value)).getMonthsInYear();
+
+    const currentMonthExists = months.some(
+      (item) => item.getMonth() === Number(lunarMonth),
+    );
+
+    if (!currentMonthExists) {
+      setLunarMonth(String(months[0]?.getMonth() || 1));
+      setLunarDay("1");
+    }
+  };
+
+  const handleLunarMonth = (value: string) => {
+    setLunarMonth(value);
+
+    const info =
+      LunarYear.fromYear(Number(lunarYear)).getMonth(
+        Number(value),
+      );
+
+    if (
+      info &&
+      Number(lunarDay) > info.getDayCount()
+    ) {
+      setLunarDay(String(info.getDayCount()));
+    }
+  };
+
   const runCalculation = () => {
+    if (!resolvedSolar) return;
+
     const date = new Date(
-      Number(year),
-      Number(month) - 1,
-      safeDay,
+      resolvedSolar.getYear(),
+      resolvedSolar.getMonth() - 1,
+      resolvedSolar.getDay(),
     );
 
     const result = calculateBazi(
@@ -134,7 +252,6 @@ export default function PanPage() {
 
     setCalculated(result);
   };
-
   const currentPillarText = useMemo(() => {
     if (!calculated) return "等待排盘";
     return `${calculated.yearPillar} · ${calculated.monthPillar} · ${calculated.dayPillar} · ${calculated.hourPillar}`;
@@ -177,45 +294,132 @@ export default function PanPage() {
 
             <div>
               <div className="mb-3 text-sm font-medium text-[#5f594f]">
-                出生日期
+                姓名
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="请输入姓名"
+                className="h-14 w-full rounded-xl border border-[#ddd5c8] bg-white px-4 text-center text-sm text-[#5f594f] outline-none placeholder:text-[#aaa095] focus:border-[#29251f]"
+              />
+            </div>
 
-                <SelectBox
-                  value={year}
-                  onChange={handleYear}
-                >
-                  {YEARS.map((item) => (
-                    <option key={item} value={item}>
-                      {item} 年
-                    </option>
-                  ))}
-                </SelectBox>
-
-                <SelectBox
-                  value={month}
-                  onChange={handleMonth}
-                >
-                  {MONTHS.map((item) => (
-                    <option key={item} value={item}>
-                      {item} 月
-                    </option>
-                  ))}
-                </SelectBox>
-
-                <SelectBox
-                  value={String(safeDay)}
-                  onChange={setDay}
-                >
-                  {days.map((item) => (
-                    <option key={item} value={item}>
-                      {item} 日
-                    </option>
-                  ))}
-                </SelectBox>
-
+            <div>
+              <div className="mb-3 text-sm font-medium text-[#5f594f]">
+                历法
               </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  ["solar", "公历"],
+                  ["lunar", "农历 / 阴历"],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() =>
+                      setCalendarMode(
+                        value as "solar" | "lunar",
+                      )
+                    }
+                    className={`h-14 rounded-xl border text-sm transition ${
+                      calendarMode === value
+                        ? "border-[#29251f] bg-[#29251f] text-white"
+                        : "border-[#ddd5c8] bg-white text-[#5f594f]"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-3 text-sm font-medium text-[#5f594f]">
+                {calendarMode === "solar"
+                  ? "公历出生日期"
+                  : "农历 / 阴历出生日期"}
+              </div>
+
+              {calendarMode === "solar" ? (
+                <div className="grid grid-cols-3 gap-2">
+
+                  <SelectBox
+                    value={year}
+                    onChange={handleYear}
+                  >
+                    {YEARS.map((item) => (
+                      <option key={item} value={item}>
+                        {item} 年
+                      </option>
+                    ))}
+                  </SelectBox>
+
+                  <SelectBox
+                    value={month}
+                    onChange={handleMonth}
+                  >
+                    {MONTHS.map((item) => (
+                      <option key={item} value={item}>
+                        {item} 月
+                      </option>
+                    ))}
+                  </SelectBox>
+
+                  <SelectBox
+                    value={String(safeDay)}
+                    onChange={setDay}
+                  >
+                    {days.map((item) => (
+                      <option key={item} value={item}>
+                        {item} 日
+                      </option>
+                    ))}
+                  </SelectBox>
+
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+
+                  <SelectBox
+                    value={lunarYear}
+                    onChange={handleLunarYear}
+                  >
+                    {YEARS.map((item) => (
+                      <option key={item} value={item}>
+                        {item} 年
+                      </option>
+                    ))}
+                  </SelectBox>
+
+                  <SelectBox
+                    value={lunarMonth}
+                    onChange={handleLunarMonth}
+                  >
+                    {lunarMonths.map((item) => (
+                      <option
+                        key={item.value}
+                        value={item.value}
+                      >
+                        {item.label}
+                      </option>
+                    ))}
+                  </SelectBox>
+
+                  <SelectBox
+                    value={String(safeLunarDay)}
+                    onChange={setLunarDay}
+                  >
+                    {lunarDays.map((item) => (
+                      <option key={item} value={item}>
+                        {item} 日
+                      </option>
+                    ))}
+                  </SelectBox>
+
+                </div>
+              )}
             </div>
 
             <div>
@@ -256,7 +460,6 @@ export default function PanPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-
                 {(["男", "女"] as const).map((item) => (
                   <button
                     key={item}
@@ -271,7 +474,6 @@ export default function PanPage() {
                     {item}
                   </button>
                 ))}
-
               </div>
             </div>
 
@@ -570,7 +772,7 @@ export default function PanPage() {
                     </div>
 
                     <div className="mt-3 space-y-2">
-                      {calculated.daYun.map((item) => (
+                      {calculated.daYun.filter((item) => item.startAge < 80).slice(0, 8).map((item) => (
                         <div
                           key={`${item.index}-${item.pillar}`}
                           className={`grid grid-cols-5 gap-3 rounded-xl px-4 py-3 text-sm ${
