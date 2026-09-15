@@ -325,7 +325,7 @@ function buildInterpretation(
   );
 
   const daYunText = currentDaYun
-    ? `当前大运为${currentDaYun.pillar}，约从${currentDaYun.startAge}岁进入，覆盖${currentDaYun.startYear}—${currentDaYun.endYear}年。`
+    ? `当前大运为${currentDaYun.pillar}，对应${currentDaYun.startYear}—${currentDaYun.endYear}年。`
     : "当前年份尚未落入已经列出的十年大运区间。";
 
   const currentYearElement = stemElement(currentYear.stem);
@@ -361,8 +361,8 @@ function buildInterpretation(
       : `关系与现实资源层面，${wealth}并非命局中最突出的力量，因此更需要结合日支以及后续大运、流年来观察具体阶段变化。`;
 
   const yearText = currentDaYun
-    ? `2026年为${currentYear.ganZhi}，流年天干${currentYear.stem}对应日主的${yearGod}。流年天干五行为${currentYearElement}，地支五行为${currentYearBranchElement}，同时处于${currentDaYun.pillar}大运阶段。因此今年不能脱离大运单独判断，重点应观察流年力量与大运、原局之间是形成扶助、泄耗还是冲动。`
-    : `2026年为${currentYear.ganZhi}，流年天干${currentYear.stem}对应日主的${yearGod}。流年天干五行为${currentYearElement}，地支五行为${currentYearBranchElement}，应结合出生原局及未来进入的大运阶段继续判断。`;
+    ? `${currentYear.year}年为${currentYear.ganZhi}，流年天干${currentYear.stem}对应日主的${yearGod}。流年天干五行为${currentYearElement}，地支五行为${currentYearBranchElement}，同时处于${currentDaYun.pillar}大运阶段。因此今年不能脱离大运单独判断，重点应观察流年力量与大运、原局之间是形成扶助、泄耗还是冲动。`
+    : `${currentYear.year}年为${currentYear.ganZhi}，流年天干${currentYear.stem}对应日主的${yearGod}。流年天干五行为${currentYearElement}，地支五行为${currentYearBranchElement}，应结合出生原局及未来进入的大运阶段继续判断。`;
 
   return [
     strengthText,

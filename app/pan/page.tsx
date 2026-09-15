@@ -14,6 +14,36 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const MINUTES = Array.from({ length: 60 }, (_, i) => i);
 
 const elements = ["木", "火", "土", "金", "水"] as const;
+function saveBaziReportData(
+  person: {
+    name: string;
+    gender: Gender;
+    calendar?: string;
+    province?: string;
+    city?: string;
+    county?: string;
+  },
+  result: BaziResult,
+) {
+  try {
+    localStorage.setItem(
+      "orientai_bazi_result",
+      JSON.stringify({
+        name: person.name || "",
+        gender: person.gender,
+        calendar: person.calendar || "solar",
+        location: {
+          province: person.province || "",
+          city: person.city || "",
+          county: person.county || "",
+        },
+        result,
+      }),
+    );
+  } catch {
+    // 浏览器存储失败时不影响排盘
+  }
+}
 
 function daysInMonth(year: number, month: number) {
   return new Date(year, month, 0).getDate();
