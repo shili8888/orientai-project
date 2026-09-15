@@ -1,4 +1,4 @@
-﻿export default function ReportPage() {
+export default function ReportPage() {
   const pillars = [
     ["年柱", "甲子", "偏官", "水"],
     ["月柱", "丙寅", "偏印", "木"],
@@ -6,7 +6,7 @@
     ["时柱", "庚午", "食神", "火"],
   ];
 
-  const elements = [
+  const elements: Array<[string, number, string]> = [
     ["木", 2, "生发、行动、规划"],
     ["火", 2, "表达、动力、表现"],
     ["土", 2, "稳定、承载、执行"],
