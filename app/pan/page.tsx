@@ -1,914 +1,373 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Lunar, LunarYear, Solar } from "lunar-typescript";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import BirthDetailsForm from "@/components/BirthDetailsForm";
 import {
-  calculateBazi,
-  type Gender,
-  type BaziResult,
-} from "../../lib/bazi";
-
-const YEARS = Array.from({ length: 101 }, (_, i) => 1950 + i);
-const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
-const HOURS = Array.from({ length: 24 }, (_, i) => i);
-const MINUTES = Array.from({ length: 60 }, (_, i) => i);
-
-const elements = ["木", "火", "土", "金", "水"] as const;
-function saveBaziReportData(
-  person: {
-    name: string;
-    gender: Gender;
-    calendar?: string;
-    province?: string;
-    city?: string;
-    county?: string;
-  },
-  result: BaziResult,
-) {
-  try {
-    localStorage.setItem(
-      "orientai_bazi_result",
-      JSON.stringify({
-        name: person.name || "",
-        gender: person.gender,
-        calendar: person.calendar || "solar",
-        location: {
-          province: person.province || "",
-          city: person.city || "",
-          county: person.county || "",
-        },
-        result,
-      }),
-    );
-  } catch {
-    // 浏览器存储失败时不影响排盘
-  }
-}
-
-function daysInMonth(year: number, month: number) {
-  return new Date(year, month, 0).getDate();
-}
-
-function SelectBox({
-  value,
-  onChange,
-  children,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="h-14 w-full rounded-xl border border-[#ddd5c8] bg-white px-4 text-center text-sm text-[#5f594f] outline-none focus:border-[#29251f]"
-    >
-      {children}
-    </select>
-  );
-}
-
-function DetailCard({
-  title,
-  detail,
-}: {
-  title: string;
-  detail: BaziResult["yearDetail"];
-}) {
-  return (
-    <div className="rounded-2xl border border-[#eadfce] bg-white p-4">
-      <div className="text-xs text-[#967b5d]">{title}</div>
-      <div className="mt-2 text-2xl font-semibold text-[#583a27]">
-        {detail.pillar}
-      </div>
-      <div className="mt-2 text-sm text-[#806b55]">
-        天干：{detail.stem} · {detail.tenGodStem}
-      </div>
-      <div className="mt-1 text-sm text-[#806b55]">
-        地支：{detail.branch} · {detail.tenGodBranch}
-      </div>
-      <div className="mt-2 text-xs leading-6 text-[#967b5d]">
-        藏干：{detail.hiddenStems.join("、") || "—"}
-      </div>
-    </div>
-  );
-}
+  calculateBirthChart,
+  defaultBirthDetails,
+  dateForBirth,
+  timeUsed,
+  type BirthDetails,
+} from "@/lib/birth";
+import { type BaziResult } from "@/lib/bazi";
+import {
+  deleteProfile,
+  readSavedData,
+  saveLatestResult,
+  saveProfile,
+  type SavedProfile,
+} from "@/lib/storage";
 
 export default function PanPage() {
-  const [name, setName] = useState("");
-  const [calendarMode, setCalendarMode] = useState<"solar" | "lunar">("solar");
-
-  const [year, setYear] = useState("2000");
-  const [month, setMonth] = useState("2");
-  const [day, setDay] = useState("6");
-
-  const [lunarYear, setLunarYear] = useState("2000");
-  const [lunarMonth, setLunarMonth] = useState("1");
-  const [lunarDay, setLunarDay] = useState("2");
-
-  const [hour, setHour] = useState("6");
-  const [minute, setMinute] = useState("59");
-  const [gender, setGender] = useState<Gender>("女");
-
-  const [calculated, setCalculated] = useState<BaziResult | null>(null);
-  const maxDay = daysInMonth(Number(year), Number(month));
-
-  const safeDay = Math.min(Number(day), maxDay);
-
-  const lunarMonths = useMemo(() => {
-    try {
-      return LunarYear.fromYear(Number(lunarYear))
-        .getMonthsInYear()
-        .map((item) => ({
-          value: item.getMonth(),
-          label: `${item.isLeap() ? "闰" : ""}${Math.abs(item.getMonth())}月`,
-          days: item.getDayCount(),
-        }));
-    } catch {
-      return [];
-    }
-  }, [lunarYear]);
-
-  const lunarMonthInfo = useMemo(() => {
-    try {
-      return (
-        LunarYear.fromYear(Number(lunarYear)).getMonth(
-          Number(lunarMonth),
-        ) || null
-      );
-    } catch {
-      return null;
-    }
-  }, [lunarYear, lunarMonth]);
-
-  const lunarMaxDay = lunarMonthInfo?.getDayCount() || 30;
-
-  const safeLunarDay = Math.min(
-    Number(lunarDay),
-    lunarMaxDay,
+  const [birthDetails, setBirthDetails] = useState<BirthDetails>(
+    defaultBirthDetails()
   );
+  const [result, setResult] = useState<BaziResult | null>(null);
+  const [savedProfiles, setSavedProfiles] = useState<SavedProfile[]>([]);
+  const [error, setError] = useState("");
+  const [savedMessage, setSavedMessage] = useState("");
 
-  const days = Array.from(
-    { length: maxDay },
-    (_, i) => i + 1,
-  );
-
-  const lunarDays = Array.from(
-    { length: lunarMaxDay },
-    (_, i) => i + 1,
-  );
-
-  const resolvedSolar = useMemo(() => {
+  useEffect(() => {
     try {
-      if (calendarMode === "lunar") {
-        return Lunar.fromYmdHms(
-          Number(lunarYear),
-          Number(lunarMonth),
-          safeLunarDay,
-          Number(hour),
-          Number(minute),
-          0,
-        ).getSolar();
+      const savedData = readSavedData();
+      setSavedProfiles(savedData.profiles);
+      if (savedData.latestResult) setResult(savedData.latestResult);
+      if (savedData.latestBirthDetails) {
+        setBirthDetails(savedData.latestBirthDetails);
       }
-
-      return Solar.fromYmdHms(
-        Number(year),
-        Number(month),
-        safeDay,
-        Number(hour),
-        Number(minute),
-        0,
-      );
-    } catch {
-      return null;
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "读取本地档案失败。");
     }
-  }, [
-    calendarMode,
-    year,
-    month,
-    safeDay,
-    lunarYear,
-    lunarMonth,
-    safeLunarDay,
-    hour,
-    minute,
-  ]);
+  }, []);
 
-  const liveLunarDate = useMemo(() => {
+  function calculate() {
     try {
-      if (!resolvedSolar) return "";
-
-      const lunar = resolvedSolar.getLunar();
-
-      return `${lunar.getYearInChinese()}年${lunar.getMonthInChinese()}月${lunar.getDayInChinese()}`;
-    } catch {
-      return "";
+      setError("");
+      setSavedMessage("");
+      const data = calculateBirthChart(birthDetails);
+      saveLatestResult(birthDetails, data);
+      setResult(data);
+      setSavedMessage("排盘结果和出生信息已保存，可在个人报告中查看。");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "排盘失败，请检查输入。");
     }
-  }, [resolvedSolar]);
+  }
 
-  const handleMonth = (value: string) => {
-    setMonth(value);
-
-    const max = daysInMonth(
-      Number(year),
-      Number(value),
-    );
-
-    if (Number(day) > max) {
-      setDay(String(max));
+  function handleSaveProfile() {
+    if (!result) return;
+    try {
+      setError("");
+      const profile = saveProfile(birthDetails, result);
+      setSavedProfiles((profiles) => [
+        profile,
+        ...profiles.filter((item) => item.id !== profile.id),
+      ]);
+      setSavedMessage(`已将${birthDetails.name}的命盘保存为个人档案。`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "保存档案失败。");
     }
-  };
+  }
 
-  const handleYear = (value: string) => {
-    setYear(value);
-
-    const max = daysInMonth(
-      Number(value),
-      Number(month),
-    );
-
-    if (Number(day) > max) {
-      setDay(String(max));
-    }
-  };
-
-  const handleLunarYear = (value: string) => {
-    setLunarYear(value);
-
-    const months =
-      LunarYear.fromYear(Number(value)).getMonthsInYear();
-
-    const currentMonthExists = months.some(
-      (item) => item.getMonth() === Number(lunarMonth),
-    );
-
-    if (!currentMonthExists) {
-      setLunarMonth(String(months[0]?.getMonth() || 1));
-      setLunarDay("1");
-    }
-  };
-
-  const handleLunarMonth = (value: string) => {
-    setLunarMonth(value);
-
-    const info =
-      LunarYear.fromYear(Number(lunarYear)).getMonth(
-        Number(value),
+  function handleDeleteProfile(id: string) {
+    try {
+      setError("");
+      deleteProfile(id);
+      setSavedProfiles((profiles) =>
+        profiles.filter((profile) => profile.id !== id)
       );
-
-    if (
-      info &&
-      Number(lunarDay) > info.getDayCount()
-    ) {
-      setLunarDay(String(info.getDayCount()));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "删除档案失败。");
     }
-  };
+  }
 
-  const runCalculation = () => {
-    if (!resolvedSolar) return;
+  function loadProfile(profile: SavedProfile) {
+    setBirthDetails(profile.birthDetails);
+    setResult(profile.result);
+    setError("");
+    setSavedMessage(`已载入${profile.name}的出生信息与命盘。`);
+  }
 
-    const date = new Date(
-      resolvedSolar.getYear(),
-      resolvedSolar.getMonth() - 1,
-      resolvedSolar.getDay(),
-    );
+  function updateBirthDetails(nextDetails: BirthDetails) {
+    setBirthDetails(nextDetails);
+    setResult(null);
+    setError("");
+    setSavedMessage("");
+  }
 
-    const result = calculateBazi(
-      date,
-      `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
-      gender,
-    );
-
-    setCalculated(result);
-  };
-  const currentPillarText = useMemo(() => {
-    if (!calculated) return "等待排盘";
-    return `${calculated.yearPillar} · ${calculated.monthPillar} · ${calculated.dayPillar} · ${calculated.hourPillar}`;
-  }, [calculated]);
+  const currentLuck = result?.currentDaYun ?? null;
 
   return (
-    <main className="min-h-screen bg-[#f7f4ee] text-[#29251f]">
-      <div className="mx-auto max-w-6xl px-5 py-10 md:px-8">
-        <header className="mb-10">
-          <div className="mb-3 text-sm tracking-[0.2em] text-[#8b6f47]">
-            东方命格 AI
+    <main className="min-h-screen px-5 py-10 text-white">
+      <div className="mx-auto max-w-6xl">
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <Link href="/" className="text-sm text-slate-400 hover:text-white">
+              ← 东方命格 AI
+            </Link>
+            <h1 className="mt-3 text-3xl font-bold">八字排盘</h1>
+            <p className="mt-2 text-slate-400">
+              公历或农历出生信息将送入真实八字引擎计算四柱与运程。
+            </p>
           </div>
-
-          <h1 className="text-3xl font-semibold md:text-4xl">
-            个人八字排盘
-          </h1>
-
-          <p className="mt-3 max-w-2xl text-sm leading-7 text-[#756f66]">
-            输入出生年月日、出生时刻与性别，生成四柱、农历、五行、十神、大运与流年分析。
-          </p>
-        </header>
-        <section className="rounded-3xl border border-[#e7e0d4] bg-white p-5 shadow-sm md:p-7">
-          <div className="mb-6 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#29251f] text-sm text-white">
-              命
-            </div>
-
-            <div>
-              <h2 className="text-xl font-semibold">
-                出生信息
-              </h2>
-
-              <p className="mt-1 text-xs text-[#92897d]">
-                请填写真实出生信息
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-7">
-
-            <div>
-              <div className="mb-3 text-sm font-medium text-[#5f594f]">
-                姓名
-              </div>
-
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="请输入姓名"
-                className="h-14 w-full rounded-xl border border-[#ddd5c8] bg-white px-4 text-center text-sm text-[#5f594f] outline-none placeholder:text-[#aaa095] focus:border-[#29251f]"
-              />
-            </div>
-
-            <div>
-              <div className="mb-3 text-sm font-medium text-[#5f594f]">
-                历法
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  ["solar", "公历"],
-                  ["lunar", "农历 / 阴历"],
-                ].map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() =>
-                      setCalendarMode(
-                        value as "solar" | "lunar",
-                      )
-                    }
-                    className={`h-14 rounded-xl border text-sm transition ${
-                      calendarMode === value
-                        ? "border-[#29251f] bg-[#29251f] text-white"
-                        : "border-[#ddd5c8] bg-white text-[#5f594f]"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="mb-3 text-sm font-medium text-[#5f594f]">
-                {calendarMode === "solar"
-                  ? "公历出生日期"
-                  : "农历 / 阴历出生日期"}
-              </div>
-
-              {calendarMode === "solar" ? (
-                <div className="grid grid-cols-3 gap-2">
-
-                  <SelectBox
-                    value={year}
-                    onChange={handleYear}
-                  >
-                    {YEARS.map((item) => (
-                      <option key={item} value={item}>
-                        {item} 年
-                      </option>
-                    ))}
-                  </SelectBox>
-
-                  <SelectBox
-                    value={month}
-                    onChange={handleMonth}
-                  >
-                    {MONTHS.map((item) => (
-                      <option key={item} value={item}>
-                        {item} 月
-                      </option>
-                    ))}
-                  </SelectBox>
-
-                  <SelectBox
-                    value={String(safeDay)}
-                    onChange={setDay}
-                  >
-                    {days.map((item) => (
-                      <option key={item} value={item}>
-                        {item} 日
-                      </option>
-                    ))}
-                  </SelectBox>
-
-                </div>
-              ) : (
-                <div className="grid grid-cols-3 gap-2">
-
-                  <SelectBox
-                    value={lunarYear}
-                    onChange={handleLunarYear}
-                  >
-                    {YEARS.map((item) => (
-                      <option key={item} value={item}>
-                        {item} 年
-                      </option>
-                    ))}
-                  </SelectBox>
-
-                  <SelectBox
-                    value={lunarMonth}
-                    onChange={handleLunarMonth}
-                  >
-                    {lunarMonths.map((item) => (
-                      <option
-                        key={item.value}
-                        value={item.value}
-                      >
-                        {item.label}
-                      </option>
-                    ))}
-                  </SelectBox>
-
-                  <SelectBox
-                    value={String(safeLunarDay)}
-                    onChange={setLunarDay}
-                  >
-                    {lunarDays.map((item) => (
-                      <option key={item} value={item}>
-                        {item} 日
-                      </option>
-                    ))}
-                  </SelectBox>
-
-                </div>
-              )}
-            </div>
-
-            <div>
-              <div className="mb-3 text-sm font-medium text-[#5f594f]">
-                出生时间
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-
-                <SelectBox
-                  value={hour}
-                  onChange={setHour}
-                >
-                  {HOURS.map((item) => (
-                    <option key={item} value={item}>
-                      {String(item).padStart(2, "0")} 时
-                    </option>
-                  ))}
-                </SelectBox>
-
-                <SelectBox
-                  value={minute}
-                  onChange={setMinute}
-                >
-                  {MINUTES.map((item) => (
-                    <option key={item} value={item}>
-                      {String(item).padStart(2, "0")} 分
-                    </option>
-                  ))}
-                </SelectBox>
-
-              </div>
-            </div>
-
-            <div>
-              <div className="mb-3 text-sm font-medium text-[#5f594f]">
-                性别
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                {(["男", "女"] as const).map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => setGender(item)}
-                    className={`h-14 rounded-xl border text-sm transition ${
-                      gender === item
-                        ? "border-[#29251f] bg-[#29251f] text-white"
-                        : "border-[#ddd5c8] bg-white text-[#5f594f]"
-                    }`}
-                  >
-                    {item}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-2xl bg-[#f5f1ea] p-4">
-              <div className="text-xs text-[#92897d]">
-                农历日期
-              </div>
-
-              <div className="mt-2 text-base font-semibold text-[#29251f]">
-                {liveLunarDate || "请选择出生信息"}
-              </div>
-            </div>
-
-            <button
-              onClick={runCalculation}
-              className="w-full rounded-xl bg-[#29251f] px-5 py-4 text-sm font-semibold text-white transition hover:bg-[#403a33]"
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/report"
+              className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/5"
             >
-              开始排盘
-            </button>
-
+              个人报告
+            </Link>
+            <Link
+              href="/compatibility"
+              className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/5"
+            >
+              合婚参考
+            </Link>
           </div>
-        </section>
-        {calculated && (
-          <div className="mt-6 space-y-6">
-            <section className="rounded-3xl border border-[#e5d7c3] bg-[#fffaf3] p-6 shadow-sm md:p-8">
-              <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-                <div>
-                  <div className="text-xs text-[#967b5d]">
-                    四柱命盘
-                  </div>
+        </div>
 
-                  <h2 className="mt-2 text-3xl font-semibold">
-                    {currentPillarText}
-                  </h2>
-                </div>
-
-                <div className="text-sm text-[#806b55]">
-                  {calculated.solarDate} · {calculated.solarTime} ·{" "}
-                  {gender}
-                                  <div className="mt-1 text-sm text-[#967b5d]">
-                    农历：{calculated.lunarDate}
-                  </div></div>
-              </div>
-
-              <div className="mt-6 grid gap-3 md:grid-cols-4">
-                <DetailCard
-                  title="年柱"
-                  detail={calculated.yearDetail}
-                />
-
-                <DetailCard
-                  title="月柱"
-                  detail={calculated.monthDetail}
-                />
-
-                <DetailCard
-                  title="日柱"
-                  detail={calculated.dayDetail}
-                />
-
-                <DetailCard
-                  title="时柱"
-                  detail={calculated.hourDetail}
-                />
-              </div>
-            </section>
-
-            <section className="grid gap-4 md:grid-cols-4">
-              {[
-                ["日主", calculated.dayMaster, calculated.dayMasterElement],
-                ["旺衰", calculated.strength, "命局综合"],
-                ["格局", calculated.pattern, "月令结构"],
-                ["生肖", calculated.zodiac, "年支生肖"],
-              ].map(([title, value, sub]) => (
+        {savedProfiles.length > 0 && (
+          <section className="mb-5 rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+            <h2 className="font-semibold">本地个人档案</h2>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {savedProfiles.map((profile) => (
                 <div
-                  key={title}
-                  className="rounded-3xl border border-[#e5d7c3] bg-white p-5 shadow-sm"
+                  key={profile.id}
+                  className="flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-sm"
                 >
-                  <div className="text-xs text-[#967b5d]">
-                    {title}
-                  </div>
-
-                  <div className="mt-2 text-2xl font-semibold">
-                    {value}
-                  </div>
-
-                  <div className="mt-1 text-sm text-[#806b55]">
-                    {sub}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => loadProfile(profile)}
+                    className="hover:text-amber-300"
+                  >
+                    {profile.name}
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`删除${profile.name}档案`}
+                    onClick={() => handleDeleteProfile(profile.id)}
+                    className="text-slate-500 hover:text-rose-300"
+                  >
+                    ×
+                  </button>
                 </div>
               ))}
-            </section>
+            </div>
+          </section>
+        )}
 
-            <section className="rounded-3xl border border-[#e5d7c3] bg-[#fffaf3] p-6 shadow-sm md:p-8">
-              <h2 className="text-xl font-semibold">
-                喜用 / 忌
-              </h2>
+        <BirthDetailsForm
+          value={birthDetails}
+          onChange={updateBirthDetails}
+          heading="个人出生信息"
+        />
 
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <div className="rounded-2xl bg-[#eadbc5] p-4">
-                  <div className="text-xs text-[#967b5d]">
-                    当前喜用方向
-                  </div>
+        <button
+          type="button"
+          onClick={calculate}
+          className="mt-5 w-full rounded-2xl bg-amber-500 py-4 font-bold text-slate-950 hover:bg-amber-400"
+        >
+          开始排盘并保存
+        </button>
+        {error && (
+          <p role="alert" className="mt-4 text-sm text-rose-300">
+            {error}
+          </p>
+        )}
+        {savedMessage && (
+          <p role="status" className="mt-4 text-sm text-emerald-300">
+            {savedMessage}
+          </p>
+        )}
 
-                  <div className="mt-2 text-lg font-semibold">
-                    {calculated.usefulElements.join(" · ")}
-                  </div>
+        {result && (
+          <div className="mt-8 space-y-6">
+            <section className="flex flex-wrap items-end justify-between gap-4 rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+              <div>
+                <h2 className="text-xl font-bold">{birthDetails.name}的四柱命盘</h2>
+                <p className="mt-2 text-sm text-slate-400">
+                  {dateForBirth(birthDetails).displayDate} · {timeUsed(birthDetails)} ·{" "}
+                  {birthDetails.gender} ·{" "}
+                  {birthDetails.province} {birthDetails.city} {birthDetails.district}
+                </p>
+                <p className="mt-2 text-xs text-slate-500">
+                  {birthDetails.timeMode === "时间不确定"
+                    ? "时柱为午时占位，时柱和相关分析不可视为准确出生时辰结果。"
+                    : "排盘根据所选出生信息使用 lunar-typescript 历法计算。"}
+                </p>
+              </div>
+              <div className="text-right">
+                <div className="text-3xl font-bold text-amber-400">
+                  {result.dayMaster}
                 </div>
-
-                <div className="rounded-2xl bg-[#f1e5d6] p-4">
-                  <div className="text-xs text-[#967b5d]">
-                    当前忌讳方向
-                  </div>
-
-                  <div className="mt-2 text-lg font-semibold">
-                    {calculated.avoidElements.join(" · ")}
-                  </div>
+                <div className="text-sm text-slate-400">
+                  {result.dayMasterElement} · {result.strength}
                 </div>
               </div>
             </section>
 
-            <section className="rounded-3xl border border-[#e5d7c3] bg-[#fffaf3] p-6 shadow-sm md:p-8">
-              <h2 className="text-xl font-semibold">
-                五行分布
-              </h2>
-
-              <div className="mt-5 space-y-4">
-                {elements.map((element) => {
-                  const count =
-                    calculated.fiveElements[element];
-
-                  return (
-                    <div key={element}>
-                      <div className="mb-1 flex justify-between text-sm">
-                        <span>{element}</span>
-                        <span className="text-[#8b7355]">
-                          {count}
-                        </span>
-                      </div>
-
-                      <div className="h-2 overflow-hidden rounded-full bg-[#eee4d6]">
-                        <div
-                          className="h-full rounded-full bg-[#9a7651]"
-                          style={{
-                            width: `${Math.min(100, count * 15)}%`,
-                          }}
-                        />
-                      </div>
+            <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+              <div className="grid grid-cols-4 gap-2 sm:gap-4">
+                {[
+                  { title: "年柱", pillar: result.year },
+                  { title: "月柱", pillar: result.month },
+                  { title: "日柱", pillar: result.day },
+                  { title: "时柱", pillar: result.hour },
+                ].map(({ title, pillar }) => (
+                  <article
+                    key={title}
+                    className="rounded-2xl bg-slate-900 p-3 text-center sm:p-4"
+                  >
+                    <div className="text-xs text-slate-500">{title}</div>
+                    <div className="mt-2 text-xl font-bold sm:text-2xl">
+                      {pillar.stem}
+                      {pillar.branch}
                     </div>
-                  );
-                })}
+                    <div className="mt-2 text-xs text-amber-400">
+                      {pillar.stemTenGod}
+                    </div>
+                    <div className="mt-3 text-xs text-slate-500">藏干 / 十神</div>
+                    <div className="mt-1 text-xs leading-5 sm:text-sm">
+                      {pillar.hiddenStems
+                        .map((hidden) => `${hidden.stem}·${hidden.tenGod}`)
+                        .join(" / ") || "—"}
+                    </div>
+                  </article>
+                ))}
               </div>
             </section>
 
-            <section className="rounded-3xl border border-[#e5d7c3] bg-[#fffaf3] p-6 shadow-sm">
-              <h2 className="text-xl font-semibold">
-                十神结构
-              </h2>
-
-              <div className="mt-5 grid gap-3 md:grid-cols-4">
-
-                <div className="rounded-2xl border border-[#eadfce] bg-white p-4">
-                  <div className="text-xs text-[#967b5d]">
-                    年柱
-                  </div>
-
-                  <div className="mt-2 text-xl font-semibold text-[#583a27]">
-                    {calculated.yearDetail.stem}
-                  </div>
-
-                  <div className="mt-2 text-sm text-[#806b55]">
-                    {calculated.yearDetail.tenGodStem}
-                  </div>
-
-                  <div className="mt-2 text-xs text-[#967b5d]">
-                    地支十神：{calculated.yearDetail.hiddenStems.join("、")}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-[#eadfce] bg-white p-4">
-                  <div className="text-xs text-[#967b5d]">
-                    月柱
-                  </div>
-
-                  <div className="mt-2 text-xl font-semibold text-[#583a27]">
-                    {calculated.monthDetail.stem}
-                  </div>
-
-                  <div className="mt-2 text-sm text-[#806b55]">
-                    {calculated.monthDetail.tenGodStem}
-                  </div>
-
-                  <div className="mt-2 text-xs text-[#967b5d]">
-                    地支十神：{calculated.monthDetail.hiddenStems.join("、")}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-[#eadfce] bg-white p-4">
-                  <div className="text-xs text-[#967b5d]">
-                    日柱
-                  </div>
-
-                  <div className="mt-2 text-xl font-semibold text-[#583a27]">
-                    {calculated.dayDetail.stem}
-                  </div>
-
-                  <div className="mt-2 text-sm text-[#806b55]">
-                    {calculated.dayDetail.tenGodStem}
-                  </div>
-
-                  <div className="mt-2 text-xs text-[#967b5d]">
-                    地支十神：{calculated.dayDetail.hiddenStems.join("、")}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-[#eadfce] bg-white p-4">
-                  <div className="text-xs text-[#967b5d]">
-                    时柱
-                  </div>
-
-                  <div className="mt-2 text-xl font-semibold text-[#583a27]">
-                    {calculated.hourDetail.stem}
-                  </div>
-
-                  <div className="mt-2 text-sm text-[#806b55]">
-                    {calculated.hourDetail.tenGodStem}
-                  </div>
-
-                  <div className="mt-2 text-xs text-[#967b5d]">
-                    地支十神：{calculated.hourDetail.hiddenStems.join("、")}
-                  </div>
-                </div>
-
-              </div>
-            </section>
-            <section className="rounded-3xl border border-[#e5d7c3] bg-[#fffaf3] p-6 shadow-sm">
-              <h2 className="text-xl font-semibold">
-                地支关系
-              </h2>
-
-              <div className="mt-5 flex flex-wrap gap-3">
-                {calculated.branchRelations.length === 0 ? (
-                  <div className="text-sm text-[#967b5d]">
-                    当前四柱没有检测到主要合、冲、害、刑关系。
-                  </div>
-                ) : (
-                  calculated.branchRelations.map(
-                    (relation, index) => (
+            <section className="grid gap-6 md:grid-cols-2">
+              <article className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+                <h2 className="text-xl font-bold">五行结构与取用</h2>
+                <div className="mt-5 grid grid-cols-5 gap-2">
+                  {Object.entries(result.fiveElements).map(
+                    ([element, count]) => (
                       <div
-                        key={`${relation.detail}-${index}`}
-                        className="rounded-2xl border border-[#eadfce] bg-white px-4 py-3"
+                        key={element}
+                        className="rounded-xl bg-slate-900 p-3 text-center"
                       >
-                        <div className="font-semibold">
-                          {relation.from}
-                          {relation.to}
-                        </div>
-
-                        <div className="mt-1 text-xs text-[#967b5d]">
-                          {relation.type}
+                        <div className="font-bold">{element}</div>
+                        <div className="mt-1 text-amber-400">{count}</div>
+                        <div className="mt-1 text-xs text-slate-500">
+                          力量 {result.elementStrength[element as keyof typeof result.elementStrength]}
                         </div>
                       </div>
-                    ),
-                  )
+                    )
+                  )}
+                </div>
+                <p className="mt-5 text-sm text-slate-300">
+                  喜用：{result.usefulElements.join("、")}　·　忌用：
+                  {result.avoidElements.join("、")}
+                </p>
+                <p className="mt-3 text-sm text-slate-400">
+                  日主：{result.dayMaster}（{result.dayMasterElement}）·{" "}
+                  {result.strength} · 格局：{result.pattern}
+                </p>
+              </article>
+
+              <article className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+                <h2 className="text-xl font-bold">十神与地支关系</h2>
+                <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                  {[
+                    ["年干", result.year.stem, result.tenGods.year],
+                    ["月干", result.month.stem, result.tenGods.month],
+                    ["日干", result.day.stem, "日主"],
+                    ["时干", result.hour.stem, result.tenGods.hour],
+                  ].map(([label, stem, god]) => (
+                    <div
+                      key={label}
+                      className="rounded-xl bg-slate-900 p-3"
+                    >
+                      {label} {stem} · {god}
+                    </div>
+                  ))}
+                </div>
+                <h3 className="mt-5 font-semibold text-slate-300">原局关系</h3>
+                {result.branchRelations.length > 0 ? (
+                  <ul className="mt-2 space-y-2 text-sm text-slate-400">
+                    {result.branchRelations.map((item, index) => (
+                      <li key={`${item.type}-${index}`}>
+                        {item.description}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-sm text-slate-500">
+                    四支未见直接六合、六冲、相害、相破或半合。
+                  </p>
                 )}
-              </div>
+              </article>
             </section>
 
-            <section className="rounded-3xl border border-[#e5d7c3] bg-[#fffaf3] p-6 shadow-sm">
-              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <h2 className="text-xl font-semibold">
-                  大运
-                </h2>
-
-                <div className="text-sm text-[#806b55]">
-                  {calculated.forward ? "顺排" : "逆排"}
-                  {" · "}
-                  起运约 {calculated.startAge} 岁
-                  {" · "}
-                  {calculated.startDate}
-                </div>
-              </div>
-
-              {calculated.daYun.length === 0 ? (
-                <div className="mt-5 rounded-2xl bg-white p-5 text-sm text-[#967b5d]">
-                  当前出生信息没有返回可显示的大运数据。
+            <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+              <h2 className="text-xl font-bold">当前大运</h2>
+              {currentLuck ? (
+                <div className="mt-4 rounded-2xl border border-amber-400/40 bg-amber-500/10 p-5">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="text-sm text-slate-300">
+                      {currentLuck.startYear}—{currentLuck.endYear}
+                    </span>
+                    <span className="text-2xl font-bold text-amber-300">
+                      {currentLuck.ganZhi}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm text-slate-300">
+                    {currentLuck.tenGod} · {currentLuck.stemElement}/
+                    {currentLuck.branchElement}
+                  </p>
+                  <p className="mt-3 leading-7 text-slate-300">
+                    {currentLuck.analysis}
+                  </p>
                 </div>
               ) : (
-                <div className="mt-5 overflow-x-auto">
-                  <div className="min-w-[720px]">
-                    <div className="grid grid-cols-5 gap-3 px-4 text-xs text-[#967b5d]">
-                      <div>大运</div>
-                      <div>起始年份</div>
-                      <div>结束年份</div>
-                      <div>年龄</div>
-                      <div>状态</div>
-                    </div>
-
-                    <div className="mt-3 space-y-2">
-                      {calculated.daYun.filter((item) => item.startAge < 80).slice(0, 8).map((item) => (
-                        <div
-                          key={`${item.index}-${item.pillar}`}
-                          className={`grid grid-cols-5 gap-3 rounded-xl px-4 py-3 text-sm ${
-                            item.isCurrent
-                              ? "bg-[#eadbc5] text-[#583a27]"
-                              : "bg-white text-[#765d45]"
-                          }`}
-                        >
-                          <div className="font-semibold">
-                            {item.pillar}
-                          </div>
-
-                          <div>{item.startYear}</div>
-                          <div>{item.endYear}</div>
-
-                          <div>
-                            {item.startAge}～{item.endAge}岁
-                          </div>
-
-                          <div>
-                            {item.isCurrent
-                              ? "当前大运"
-                              : ""}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                <p className="mt-3 text-slate-400">
+                  当前年份不在排出的十年大运范围内。
+                </p>
               )}
             </section>
 
-            <section className="rounded-3xl border border-[#e5d7c3] bg-[#fffaf3] p-6 shadow-sm">
-              <h2 className="text-xl font-semibold">
-                当前流年
-              </h2>
-
-              <div className="mt-5 grid gap-3 md:grid-cols-4">
-                <div className="rounded-2xl bg-[#f3e9db] p-4">
-                  <div className="text-xs text-[#967b5d]">
-                    年份
-                  </div>
-
-                  <div className="mt-2 text-2xl font-semibold">
-                    {calculated.currentYear.year}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl bg-[#f3e9db] p-4">
-                  <div className="text-xs text-[#967b5d]">
-                    干支
-                  </div>
-
-                  <div className="mt-2 text-2xl font-semibold">
-                    {calculated.currentYear.ganZhi}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl bg-[#eadbc5] p-4">
-                  <div className="text-xs text-[#967b5d]">
-                    当前大运
-                  </div>
-
-                  <div className="mt-2 text-2xl font-semibold">
-                    {calculated.currentDaYun?.pillar || "—"}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl bg-white p-4">
-                  <div className="text-xs text-[#967b5d]">
-                    流年十神
-                  </div>
-
-                  <div className="mt-2 text-xl font-semibold">
-                    {calculated.currentYear.stem}
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section className="rounded-3xl border border-[#e5d7c3] bg-[#fffaf3] p-6 shadow-sm md:p-8">
-              <h2 className="text-xl font-semibold">
-                命局分析
-              </h2>
-
-              <div className="mt-5 space-y-4">
-                {calculated.interpretation.map(
-                  (paragraph, index) => (
-                    <div
-                      key={index}
-                      className="rounded-2xl bg-white p-5"
-                    >
-                      <p className="text-sm leading-8 text-[#705a45]">
-                        {paragraph}
-                      </p>
+            <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+              <h2 className="text-xl font-bold">当前及未来四年流年</h2>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                {result.annualFortunes.map((fortune) => (
+                  <article
+                    key={fortune.year}
+                    className={`rounded-2xl p-4 ${
+                      fortune.year === result.currentYear
+                        ? "border border-amber-400/50 bg-amber-500/10"
+                        : "bg-slate-900"
+                    }`}
+                  >
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-sm text-slate-400">
+                        {fortune.year} 年
+                      </span>
+                      <span className="text-lg font-bold text-amber-300">
+                        {fortune.ganZhi}
+                      </span>
                     </div>
-                  ),
-                )}
+                    <p className="mt-2 text-xs text-slate-400">
+                      {fortune.stemTenGod} · 天干{fortune.stemElement} / 地支
+                      {fortune.branchElement}
+                    </p>
+                    <p className="mt-3 text-sm leading-6 text-slate-300">
+                      {fortune.theme}
+                    </p>
+                  </article>
+                ))}
               </div>
             </section>
+
+            <button
+              type="button"
+              onClick={handleSaveProfile}
+              className="w-full rounded-2xl border border-amber-400/40 py-4 font-semibold text-amber-300 hover:bg-amber-500/10"
+            >
+              保存为个人档案
+            </button>
           </div>
         )}
-
-        <p className="mt-8 text-center text-xs leading-6 text-[#aaa095]">
-          本产品内容用于传统文化研究与娱乐参考，不构成医学、法律、投资或其他专业建议。
-        </p>
       </div>
     </main>
   );
